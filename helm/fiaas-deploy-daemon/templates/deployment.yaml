@@ -82,3 +82,19 @@ spec:
           - mountPath: /var/run/config/fiaas/
             name: fiaas-deploy-daemon-config
             readOnly: true
+      {{- if .Values.deployment.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.deployment.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.deployment.affinity }}
+      affinity:
+{{ toYaml .Values.deployment.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.deployment.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{ toYaml .Values.deployment.topologySpreadConstraints | indent 8 }}
+      {{- end }}
+      {{- if .Values.deployment.tolerations }}
+      tolerations:
+{{ toYaml .Values.deployment.tolerations | indent 8 }}
+      {{- end }}
