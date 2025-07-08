@@ -117,3 +117,31 @@ deployment:
       prometheus.io/path: /internal-backstage/prometheus
       prometheus.io/port: "5000"
       prometheus.io/scrape: "true"
+
+  # Node labels for pod assignment
+  # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+  #
+  nodeSelector: {}
+
+  # Pod affinity: the pod's scheduling constraints for more fine-grained node selection logic and
+  # co-location rules with other pods.
+  #
+  affinity: {}
+
+  # Pod topology spread constraints
+  # You can use them to control how Pods are spread across your cluster among failure-domains such as
+  # regions, zones, nodes, and other user-defined topology domains. This can help to achieve high
+  # availability as well as efficient resource utilization.
+  # All topologySpreadConstraints are ANDed.
+  #
+  # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
+  topologySpreadConstraints: []
+
+  # Node tolerations for scheduling to nodes with taints
+  # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+  #
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
