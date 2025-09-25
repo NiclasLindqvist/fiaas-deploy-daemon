@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 
-# Copyright 2017-2019 The FIAAS Authors
+# Copyright 2017-2024 The FIAAS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,16 +43,18 @@ from ..models import (
     SecretsSpec,
     StatefulSetSpec,
     StatefulSetUpdateStrategySpec,
+    StatefulSetVolumeClaimSpec,
+    StatefulSetVolumeClaimResourcesSpec,
 )
 from ..v2.transformer import RESOURCE_UNDEFINED_UGLYHACK
 from ...tools import merge_dicts
 
 
 class Factory(BaseFactory):
-    version = 3
+    version = 4
 
     def __init__(self, config=None):
-        self._defaults = yaml.safe_load(pkgutil.get_data("fiaas_deploy_daemon.specs.v3", "defaults.yml"))
+        self._defaults = yaml.safe_load(pkgutil.get_data("fiaas_deploy_daemon.specs.v4", "defaults.yml"))
         # Overwrite default value based on config flag for ingress_tls
         self._defaults["extensions"]["tls"]["enabled"] = config and config.use_ingress_tls == "default_on"
 
@@ -102,7 +104,7 @@ class Factory(BaseFactory):
                 certificate_issuer=lookup["extensions"]["tls"]["certificate_issuer"],
             ),
             secrets=self._secrets_specs(lookup["extensions"]["secrets"]),
-            statefulset=self._statefulset_spec(),
+            statefulset=self._statefulset_spec(lookup["statefulset"]),
             app_config=app_config,
         )
         return app_spec
@@ -139,15 +141,77 @@ class Factory(BaseFactory):
             enabled=prometheus_lookup["enabled"], port=prometheus_lookup["port"], path=prometheus_lookup["path"]
         )
 
-    @staticmethod
-    def _statefulset_spec():
-        return StatefulSetSpec(
-            enabled=False,
-            service_name=None,
-            pod_management_policy="OrderedReady",
-            update_strategy=StatefulSetUpdateStrategySpec(type="RollingUpdate", rolling_update_partition=None),
-            volume_claims=[],
+    def _statefulset_spec(self, statefulset_lookup):
+        enabled = statefulset_lookup["enabled"]
+        service_name = self._optional_string(statefulset_lookup.get_config_value("service_name"))
+        pod_management_policy = statefulset_lookup["pod_management_policy"]
+        update_strategy_lookup = statefulset_lookup["update_strategy"]
+        update_strategy = StatefulSetUpdateStrategySpec(
+            type=update_strategy_lookup["type"],
+            rolling_update_partition=update_strategy_lookup["rolling_update_partition"],
         )
+        volume_claims = self._statefulset_volume_claims(statefulset_lookup["volume_claims"])
+        if enabled and not volume_claims:
+            raise InvalidConfiguration("statefulset.enabled requires at least one volume_claim")
+        return StatefulSetSpec(
+            enabled=enabled,
+            service_name=service_name,
+            pod_management_policy=pod_management_policy,
+            update_strategy=update_strategy,
+            volume_claims=volume_claims,
+        )
+
+    def _statefulset_volume_claims(self, volume_claims_lookup):
+        claims = []
+        for idx in range(len(volume_claims_lookup)):
+            claim_lookup = volume_claims_lookup[idx]
+            claims.append(self._volume_claim_spec(claim_lookup))
+        return claims
+
+    def _volume_claim_spec(self, claim_lookup):
+        if not isinstance(claim_lookup, dict):
+            claim_lookup = claim_lookup.raw()
+        name = claim_lookup.get("name")
+        mount_path = claim_lookup.get("mount_path")
+        if not name:
+            raise InvalidConfiguration("statefulset.volume_claims entries must define name")
+        if not mount_path:
+            raise InvalidConfiguration("statefulset.volume_claims {} must define mount_path".format(name))
+
+        resources_lookup = claim_lookup.get("resources") or {}
+        resources = self._statefulset_volume_resources(name, resources_lookup)
+
+        storage_class_name = self._optional_string(claim_lookup.get("storage_class_name"))
+        access_modes = claim_lookup.get("access_modes") or ["ReadWriteOnce"]
+        annotations = claim_lookup.get("annotations") or {}
+        return StatefulSetVolumeClaimSpec(
+            name=name,
+            mount_path=mount_path,
+            storage_class_name=storage_class_name,
+            access_modes=list(access_modes),
+            annotations=dict(annotations),
+            resources=resources,
+        )
+
+    @staticmethod
+    def _statefulset_volume_resources(name, resources_lookup):
+        requests = dict(resources_lookup.get("requests") or {})
+        if "storage" not in requests or not requests["storage"]:
+            raise InvalidConfiguration(
+                "statefulset.volume_claims {} must define resources.requests.storage".format(name)
+            )
+        limits = resources_lookup.get("limits")
+        limits = dict(limits) if limits else None
+        return StatefulSetVolumeClaimResourcesSpec(requests=requests, limits=limits)
+
+    @staticmethod
+    def _optional_string(value):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        value = value.strip()
+        return value if value else None
 
     @staticmethod
     def _datadog_spec(datadog_lookup):

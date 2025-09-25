@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 
-# Copyright 2017-2019 The FIAAS Authors
+# Copyright 2017-2024 The FIAAS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,5 +16,13 @@
 # limitations under the License.
 
 
-from .factory import Factory  # NOQA
-from .transformer import Transformer  # NOQA
+import copy
+
+from ..factory import BaseTransformer
+
+
+class Transformer(BaseTransformer):
+    def __call__(self, app_config, strip_defaults=False):
+        new_config = copy.deepcopy(app_config)
+        new_config["version"] = 4
+        return new_config
