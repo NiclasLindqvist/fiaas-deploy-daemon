@@ -46,7 +46,7 @@ from ..models import (
     StatefulSetVolumeClaimSpec,
     StatefulSetVolumeClaimResourcesSpec,
 )
-from ..v2.transformer import RESOURCE_UNDEFINED_UGLYHACK
+from ..v2.transformer import RESOURCE_UNDEFINED_UGLYHACK, _normalize_resource_value
 from ...tools import merge_dicts
 
 
@@ -131,8 +131,8 @@ class Factory(BaseFactory):
 
     @staticmethod
     def _resource_requirements_spec(resource_lookup):
-        cpu = None if resource_lookup["cpu"] == RESOURCE_UNDEFINED_UGLYHACK else resource_lookup["cpu"]
-        memory = None if resource_lookup["memory"] == RESOURCE_UNDEFINED_UGLYHACK else resource_lookup["memory"]
+        cpu = _normalize_resource_value(resource_lookup["cpu"])
+        memory = _normalize_resource_value(resource_lookup["memory"])
         return ResourceRequirementSpec(cpu=cpu, memory=memory)
 
     @staticmethod
